@@ -1,0 +1,20 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../client/store" },
+    { "path": "../../client/locale" },
+    { "path": "../../client/ui-slots" },
+    { "path": "../../client/ui-renderer" },
+    { "path": "../../client/ui-layout" },
+    { "path": "../../client/ui-sidebar" },
+    { "path": "../../client/ui-primitives" },
+    { "path": "../../api/remotes" },
+    { "path": "../ssh-remote" }
+  ]
+}

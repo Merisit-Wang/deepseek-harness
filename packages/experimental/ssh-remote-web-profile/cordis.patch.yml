@@ -1,0 +1,10 @@
+# Experimental SSH remote workspace layer. Apply after dsh-web-app: the host
+# controller provisions and tunnels remote backends, and the browser panel
+# mounts only when that service is present.
+
+- insert:
+    - id: ssh-remote
+      name: '@deepseek-ai/dsh-experimental-ssh-remote'
+- insert:
+    - id: ui-ssh-remote
+      name: '@deepseek-ai/dsh-experimental-client-ui-ssh-remote'

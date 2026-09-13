@@ -1,0 +1,15 @@
+import { defineConfig } from 'tsdown'
+
+/** Bundle the runtime entry as the package's node export. */
+export default defineConfig([
+  {
+    entry: ['lib/types/index.js'],
+    outDir: 'lib',
+    format: ['esm'],
+    platform: 'node',
+    target: 'es2024',
+    fixedExtension: false,
+    dts: false,
+    clean: false,
+  },
+])

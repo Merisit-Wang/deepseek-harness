@@ -20,7 +20,8 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { listSshTargets } from './targets.ts'
-import { createSystemSshRunner, type SshRunner, type SshSpawnedProcess } from './ssh.ts'
+import { createSystemSshRunner, localUid } from './ssh.ts'
+import type { SshRunner, SshSpawnedProcess } from './ssh.ts'
 import { DEFAULT_RUNTIME_OPTIONS, createTarRuntimePackager, ensureRemoteBackend, targetWorkDir } from './runtime.ts'
 import type { RuntimePackager } from './runtime.ts'
 import type {
@@ -92,6 +93,7 @@ function freePort(): Promise<number> {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
       const address = server.address()
+      /* v8 ignore next 4 -- a listening server's address() is null only after close, which this callback cannot observe. */
       if (address === null || typeof address !== 'object') {
         server.close()
         reject(new Error('could not reserve a local port'))
@@ -161,7 +163,7 @@ export class SshRemoteController extends TypertRemoteService {
       nodeInstallVersion: resolved.nodeInstallVersion ?? DEFAULT_RUNTIME_OPTIONS.nodeInstallVersion,
       commandTimeoutMs: resolved.commandTimeoutMs ?? DEFAULT_RUNTIME_OPTIONS.commandTimeoutMs,
       launchTimeoutMs: resolved.launchTimeoutMs ?? DEFAULT_RUNTIME_OPTIONS.launchTimeoutMs,
-      stateDir: resolved.stateDir ?? join(tmpdir(), `dsh-ssh-${process.getuid?.() ?? 0}`),
+      stateDir: resolved.stateDir ?? join(tmpdir(), `dsh-ssh-${localUid()}`),
     }
     this.runner = runner ?? createSystemSshRunner(join(this.config.stateDir, 'control'))
     this.probe = probe
@@ -234,6 +236,7 @@ export class SshRemoteController extends TypertRemoteService {
     const inflight = this.ensure(target, signal)
       .finally(() => {
         const entry = this.backends.get(target.id)
+        /* v8 ignore next 1 -- the entry is always present: remoteEnsure writes it before ensure() can settle. */
         if (entry !== undefined) delete entry.inflight
       })
     const entry = this.backends.get(target.id) ?? { phase: 'idle' }

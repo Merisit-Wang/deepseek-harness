@@ -176,9 +176,13 @@ interface LocalInstallManifest {
  * CLI package lives inside a `node_modules` tree, that whole tree is the
  * payload; a source checkout without one fails loud instead of shipping a
  * broken runtime.
+ * @param startDir - directory the upward package search starts from;
+ *   production uses this module's location.
  */
-async function resolveLocalInstall(): Promise<LocalInstall> {
-  let dir = dirname(fileURLToPath(import.meta.url))
+export async function resolveLocalInstall(
+  startDir: string = dirname(fileURLToPath(import.meta.url)),
+): Promise<LocalInstall> {
+  let dir = startDir
   for (let depth = 0; depth < 12; depth += 1) {
     let manifest: LocalInstallManifest | undefined
     try {
@@ -187,8 +191,18 @@ async function resolveLocalInstall(): Promise<LocalInstall> {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
     if (manifest?.bin !== undefined && Object.keys(manifest.bin).includes('dsh')) {
-      const payloadRoot = dirname(dir).split('/').pop() === 'node_modules' ? dirname(dir) : dir
-      if (payloadRoot === dir) {
+      // Payload: the node_modules tree holding the CLI. Scoped packages sit
+      // one level deeper (<node_modules>/<@scope>/<pkg>).
+      const parent = dirname(dir)
+      /* v8 ignore next 1 -- pop() on an absolute path is always a defined string. */
+      const parentName = parent.split('/').pop() ?? ''
+      const grandparent = dirname(parent)
+      /* v8 ignore next 1 -- pop() on an absolute path is always a defined string. */
+      const grandparentName = grandparent.split('/').pop() ?? ''
+      const payloadRoot = parentName === 'node_modules' ? parent
+        : parentName.startsWith('@') && grandparentName === 'node_modules' ? grandparent
+          : undefined
+      if (payloadRoot === undefined) {
         throw new Error(
           'cannot pack the dsh runtime: the CLI does not live in a node_modules tree. '
           + 'Install dsh from a package manager so the runtime payload is self-contained.',
@@ -209,15 +223,16 @@ async function resolveLocalInstall(): Promise<LocalInstall> {
 /**
  * Create the production packager: tar the local CLI's install tree,
  * dereferencing symlinks so pnpm and global-link layouts become plain files.
+ * @param startDir - package-search start directory, substituted by tests.
  * @returns the packager.
  */
-export function createTarRuntimePackager(): RuntimePackager {
+export function createTarRuntimePackager(startDir?: string): RuntimePackager {
   return {
     async version() {
-      return (await resolveLocalInstall()).version
+      return (await resolveLocalInstall(startDir)).version
     },
     async pack(workDir) {
-      const install = await resolveLocalInstall()
+      const install = await resolveLocalInstall(startDir)
       const tarballPath = join(workDir, `dsh-runtime-${install.version}.tar.gz`)
       const { spawn } = await import('node:child_process')
       await new Promise<void>((resolve, reject) => {

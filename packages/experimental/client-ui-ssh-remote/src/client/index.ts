@@ -101,19 +101,25 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   }
 
   const refresh = async (): Promise<void> => {
-    const [targetsResult, statusResult] = await Promise.all([
-      ctx.remote.sshRemote.targets(),
-      ctx.remote.sshRemote.status(),
-    ])
-    if (!targetsResult.ok) {
-      publish({ loaded: true, error: `${targetsResult.error.message} (${targetsResult.error.code})` })
-      return
+    try {
+      const [targetsResult, statusResult] = await Promise.all([
+        ctx.remote.sshRemote.targets(),
+        ctx.remote.sshRemote.status(),
+      ])
+      if (!targetsResult.ok) {
+        publish({ loaded: true, error: `${targetsResult.error.message} (${targetsResult.error.code})` })
+        return
+      }
+      const statuses: Record<string, SshBackendStatus> = {}
+      if (statusResult.ok) {
+        for (const status of statusResult.value) statuses[status.targetId] = status
+      }
+      publish({ loaded: true, targets: targetsResult.value, statuses, error: undefined })
+    } catch (error) {
+      // A transport-level rejection is the same user-facing fact as a
+      // business Remote failure: the panel could not load.
+      publish({ loaded: true, error: error instanceof Error ? error.message : String(error) })
     }
-    const statuses: Record<string, SshBackendStatus> = {}
-    if (statusResult.ok) {
-      for (const status of statusResult.value) statuses[status.targetId] = status
-    }
-    publish({ loaded: true, targets: targetsResult.value, statuses, error: undefined })
   }
 
   const injected: SshRemotePanelInjected = {

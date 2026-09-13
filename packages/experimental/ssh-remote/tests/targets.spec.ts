@@ -81,6 +81,14 @@ Host high-port
     expect(mustGet(targets[0], 'target').port).toBeUndefined()
     expect(mustGet(targets[1], 'target').port).toBeUndefined()
   })
+  it('ignores bare words and valueless Host lines without failing', () => {
+    const targets = parseSshConfig(`
+JustAWord
+Host=
+Host box
+`)
+    expect(targets.map(target => target.alias)).toEqual(['box'])
+  })
 })
 
 describe('listSshTargets', () => {
@@ -94,6 +102,11 @@ describe('listSshTargets', () => {
 
   it('returns an empty list when the config file is absent', async () => {
     await expect(listSshTargets(join(dir, 'missing'))).resolves.toEqual([])
+  })
+
+  it('rethrows read failures other than a missing file', async () => {
+    // A directory is not a readable config file: readFile fails with EISDIR.
+    await expect(listSshTargets(dir)).rejects.toThrow()
   })
 
   it('reads targets from the given config path', async () => {

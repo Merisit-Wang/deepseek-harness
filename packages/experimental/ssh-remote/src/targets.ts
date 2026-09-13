@@ -47,9 +47,11 @@ export function parseSshConfig(text: string, configPath: string = DEFAULT_SSH_CO
     if (line === '') continue
     const match = /^(\S+)\s+(.*)$/.exec(line) ?? /^(\S+)=(.*)$/.exec(line)
     if (match === null) continue
+    /* v8 ignore start -- both patterns require \S+, so a successful match always has both groups. */
     const keyword = match[1]?.toLowerCase()
-    const value = (match[2] ?? '').trim()
     if (keyword === undefined) continue
+    const value = (match[2] ?? '').trim()
+    /* v8 ignore stop */
     if (keyword === 'host') {
       flush()
       // A `Host` line may name several patterns; only a single concrete alias

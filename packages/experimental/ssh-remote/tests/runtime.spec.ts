@@ -131,4 +131,44 @@ describe('ensureRemoteBackend', () => {
     await expect(ensureRemoteBackend(runner, ALIAS, '/tmp/work', OPTIONS, PACKAGER))
       .rejects.toThrow('permission denied')
   })
+
+  it('falls back to stdout when a failing script has no stderr', async () => {
+    const runner = new ScriptedRunner([
+      [/node -v/, ok('v22.20.0')],
+      [/dsh" --version/, ok('1.0.0')],
+      [/mkdir -p ".dsh-ssh\/tmp"/, { code: 1, stdout: 'stdout says why', stderr: '' }],
+    ])
+    await expect(ensureRemoteBackend(runner, ALIAS, '/tmp/work', OPTIONS, PACKAGER))
+      .rejects.toThrow('stdout says why')
+  })
+
+  it('reuses a previously provisioned node without reinstalling', async () => {
+    const runner = new ScriptedRunner([
+      [/^command -v node/, ok('')],
+      [/node\/bin\/node" -v/, ok('v22.4.0')],
+      [/dsh" --version/, ok('1.2.3')],
+      READY_PID,
+      READY_URL,
+    ])
+    const phases: ProvisioningPhase[] = []
+    await ensureRemoteBackend(runner, ALIAS, '/tmp/work', OPTIONS, PACKAGER, phase => phases.push(phase))
+    expect(runner.scripts.some(script => script.includes('nodejs.org'))).toBe(false)
+    const dshCheck = runner.scripts.find(script => script.includes('dsh" --version'))
+    expect(dshCheck).toContain('.dsh-ssh/node/bin:')
+    expect(phases).not.toContain('installing-node')
+  })
+
+  it('installs the darwin-arm64 node build on that platform', async () => {
+    const runner = new ScriptedRunner([
+      [/^command -v node/, ok('')],
+      [/node\/bin\/node" -v/, ok('')],
+      [/uname -s/, ok('Darwin arm64')],
+      [/dsh" --version/, ok('1.2.3')],
+      READY_PID,
+      READY_URL,
+    ])
+    await ensureRemoteBackend(runner, ALIAS, '/tmp/work', OPTIONS, PACKAGER)
+    const installScript = runner.scripts.find(script => script.includes('nodejs.org'))
+    expect(installScript).toContain('node-v22.20.0-darwin-arm64.tar.gz')
+  })
 })

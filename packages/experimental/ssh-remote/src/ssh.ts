@@ -108,6 +108,14 @@ function spawnCollect(
   })
 }
 
+/** Process uid for per-user state directories; 0 on platforms without getuid. */
+export function localUid(): number {
+  const getuid = process.getuid
+  /* v8 ignore next 2 -- Windows has no process.getuid. */
+  if (getuid === undefined) return 0
+  return getuid.call(process)
+}
+
 /**
  * Create the production runner spawning system `ssh`/`scp`.
  * @param controlDir - directory for ControlMaster sockets; created on demand.
@@ -115,7 +123,7 @@ function spawnCollect(
  * @returns the runner.
  */
 export function createSystemSshRunner(
-  controlDir: string = join(tmpdir(), `dsh-ssh-${process.getuid?.() ?? 0}`),
+  controlDir: string = join(tmpdir(), `dsh-ssh-${localUid()}`),
   spawnImpl: SshSpawn = spawn,
 ): SshRunner {
   const ready = mkdir(controlDir, { recursive: true, mode: 0o700 })

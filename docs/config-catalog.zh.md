@@ -719,6 +719,32 @@ export interface InspectorOptions {
 
 来源：[`packages/experimental/inspector/src/index.ts:66`](../packages/experimental/inspector/src/index.ts)
 
+<a id="deepseek-aidsh-experimental-ssh-remote"></a>
+
+## `@deepseek-ai/dsh-experimental-ssh-remote`
+
+```ts config-catalog
+/** Plugin configuration; every field has a production default. */
+export interface SshRemoteConfig {
+  /** ssh config file to discover targets from. */
+  sshConfigPath?: string
+  /** Remote home-relative directory holding node, runtime, logs, and pid files. */
+  remoteRoot?: string
+  /** Minimum Node.js major version accepted on the remote. */
+  minimumNodeMajor?: number
+  /** Node.js version installed remotely when the check fails. */
+  nodeInstallVersion?: string
+  /** Hard deadline for one remote script, in milliseconds. */
+  commandTimeoutMs?: number
+  /** Deadline for the remote backend startup line, in milliseconds. */
+  launchTimeoutMs?: number
+  /** Local directory for ControlMaster sockets and runtime tarballs. */
+  stateDir?: string
+}
+```
+
+来源：[`packages/experimental/ssh-remote/src/index.ts:39`](../packages/experimental/ssh-remote/src/index.ts)
+
 <a id="deepseek-aidsh-experimental-tool-agent-team"></a>
 
 ## `@deepseek-ai/dsh-experimental-tool-agent-team`
@@ -3501,6 +3527,8 @@ export interface Config {
 - `@deepseek-ai/dsh-cordis-client-runner`（[`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts)）
 - `@deepseek-ai/dsh-deepseek-llm-api-extensions`（[`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-client-ui-agent-team`（[`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-client-ui-ssh-remote`（[`packages/experimental/client-ui-ssh-remote/src/index.ts`](../packages/experimental/client-ui-ssh-remote/src/index.ts)）
+- `@deepseek-ai/dsh-experimental-ssh-remote-web-profile`（[`packages/experimental/ssh-remote-web-profile/src/index.ts`](../packages/experimental/ssh-remote-web-profile/src/index.ts)）
 - `@deepseek-ai/dsh-fs-e2b` — 需要 `e2b`（[`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts)）
 - `@deepseek-ai/dsh-fs-observation-policy`（[`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts)）
 - `@deepseek-ai/dsh-goal-round-driver` — 需要 `agents` · `goals` · `sessions`（[`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts)）

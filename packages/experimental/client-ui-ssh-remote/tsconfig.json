@@ -14,7 +14,7 @@
     { "path": "../../client/ui-layout" },
     { "path": "../../client/ui-sidebar" },
     { "path": "../../client/ui-primitives" },
-    { "path": "../../api/remotes" },
+    { "path": "../../api/remotes/tsconfig.client.json" },
     { "path": "../ssh-remote" }
   ]
 }

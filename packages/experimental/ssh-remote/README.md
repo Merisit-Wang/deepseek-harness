@@ -14,9 +14,9 @@ English | [中文](README.zh.md)
 ## Table of Contents
 
 - [Use this package](#use-this-package)
+- [Dev Note](#dev-note)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
-- [Dev Note](#dev-note)
 
 -----
 
@@ -48,21 +48,17 @@ Every field is optional; defaults are production values.
 | `launchTimeoutMs` | `60000` | deadline for the remote backend startup line |
 | `stateDir` | `$TMPDIR/dsh-ssh-<uid>` | local control sockets and runtime tarballs |
 
------
-
-<a id="model-experience"></a>
 ## Model Experience
 
-None: the package provisions and tunnels a remote backend and registers no prompt section, tool, or session event. The remote backend's own model behavior is the local build's, bit for bit.
+None, as the controller provisions and tunnels a remote backend and registers no prompt section, tool, or session event; the remote backend's own model behavior is the local build's, bit for bit.
 
 #### KV Cache effect
 
-None; provisioning and tunnel traffic never reaches a model request.
+Provisioning and tunnel traffic never reaches a model request, so provider cache reuse is unaffected.
 
------
+## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-## Known Limitations and Deferred Work
 
 - The runtime packager ships the local CLI's `node_modules` install tree; running from a source checkout fails loud with guidance instead of packing. A slimmer payload (dependency-pruned bundle) is deferred.
 - Switching to a remote backend reloads the page onto the tunnel URL. The multi-backend client architecture that removes the reload is proposed in the [multi-backend Agent Note](../../../.agents/notes/proposed/architecture/2026-09-12-multi-backend-web-client.md).
@@ -70,9 +66,7 @@ None; provisioning and tunnel traffic never reaches a model request.
 - Password prompts are unsupported by design (`BatchMode=yes`); targets must authenticate with an agent or key.
 - No runtime invariant companion is published: the controller's state map is written and read through the same service, so an independent observation cannot diverge from the implementation.
 
------
-
 <a id="dev-note"></a>
-## Dev Note
+### Dev Note
 
 `SshRunner` (system ssh) and `RuntimePackager` (local payload tar) are the two test seams; unit tests script both and need neither sshd nor a dsh install. `parseSshConfig` is pure. The remote backend prints `dsh web: <url>?token=…` on startup, and `ensure` treats that line as readiness — the same contract supervisors already rely on.

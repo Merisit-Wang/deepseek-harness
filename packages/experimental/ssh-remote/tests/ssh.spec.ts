@@ -8,13 +8,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createSystemSshRunner } from '../src/ssh.ts'
 
 interface FakeChild {
-  child: ChildProcess
-  finish(code: number): void
+  readonly child: ChildProcess
+  /** End both output streams and emit `close`; call after the operation starts. */
+  finish(): void
+  /** The bytes written to the child's stdin so far. */
   stdinText(): Promise<string>
 }
 
 /** A ChildProcess stand-in: streams for stdio, EventEmitter for lifecycle. */
-function makeFakeChild(stdout: string, stderr: string, exitCode: number): FakeChild & { argvSeen: string[] } {
+function makeFakeChild(stdout: string, stderr: string, exitCode: number): FakeChild {
   const emitter = new EventEmitter()
   const inStream = new PassThrough()
   const outStream = new PassThrough()
@@ -28,19 +30,23 @@ function makeFakeChild(stdout: string, stderr: string, exitCode: number): FakeCh
     kill: () => true,
   }) as unknown as ChildProcess
   const finished = new Promise<string>((resolve) => {
-    inStream.on('end', () => resolve(Buffer.concat(stdinChunks).toString('utf8')))
-  })
-  queueMicrotask(() => {
-    outStream.end(stdout)
-    errStream.end(stderr)
-    emitter.emit('close', exitCode)
+    inStream.on('end', () => { resolve(Buffer.concat(stdinChunks).toString('utf8')) })
   })
   return {
     child,
-    argvSeen: [],
-    finish: () => {},
+    finish() {
+      outStream.end(stdout)
+      errStream.end(stderr)
+      emitter.emit('close', exitCode)
+    },
     stdinText: () => finished,
   }
+}
+
+/** Narrow a possibly-undefined value under noUncheckedIndexedAccess. */
+function mustGet<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`expected ${what} to be defined`)
+  return value
 }
 
 describe('createSystemSshRunner', () => {
@@ -55,6 +61,9 @@ describe('createSystemSshRunner', () => {
   function spawnReturning(fake: FakeChild, argvLog: string[][]): typeof import('node:child_process').spawn {
     return ((command: string, args: readonly string[]) => {
       argvLog.push([command, ...args])
+      // The runner attaches its listeners synchronously right after spawn
+      // returns, so emitting on a microtask cannot race their registration.
+      queueMicrotask(() => { fake.finish() })
       return fake.child
     }) as unknown as typeof import('node:child_process').spawn
   }
@@ -65,7 +74,7 @@ describe('createSystemSshRunner', () => {
     const runner = createSystemSshRunner(dir, spawnReturning(fake, argvLog))
     const result = await runner.run('dev-box', 'echo hi', 5000)
     expect(result).toEqual({ code: 0, stdout: 'out', stderr: '' })
-    const [argv] = argvLog
+    const argv = mustGet(argvLog[0], 'argv')
     expect(argv[0]).toBe('ssh')
     expect(argv.join(' ')).toContain('BatchMode=yes')
     expect(argv.join(' ')).toContain('ControlMaster=auto')
@@ -79,8 +88,9 @@ describe('createSystemSshRunner', () => {
     const runner = createSystemSshRunner(dir, spawnReturning(fake, argvLog))
     await expect(runner.upload('dev-box', '/tmp/a.tgz', '.dsh-ssh/tmp/a.tgz', 5000))
       .rejects.toThrow('Permission denied')
-    expect(argvLog[0][0]).toBe('scp')
-    expect(argvLog[0].slice(-2)).toEqual(['/tmp/a.tgz', 'dev-box:.dsh-ssh/tmp/a.tgz'])
+    const uploadArgv = mustGet(argvLog[0], 'argv')
+    expect(uploadArgv[0]).toBe('scp')
+    expect(uploadArgv.slice(-2)).toEqual(['/tmp/a.tgz', 'dev-box:.dsh-ssh/tmp/a.tgz'])
   })
 
   it('starts a tunnel with the forward mapping and resolves a clean kill', async () => {
@@ -88,7 +98,7 @@ describe('createSystemSshRunner', () => {
     const argvLog: string[][] = []
     const runner = createSystemSshRunner(dir, spawnReturning(fake, argvLog))
     const tunnel = runner.startTunnel('dev-box', 5001, 4100)
-    const [argv] = argvLog
+    const argv = mustGet(argvLog[0], 'argv')
     expect(argv).toContain('-N')
     expect(argv).toContain('ExitOnForwardFailure=yes')
     expect(argv.join(' ')).toContain('127.0.0.1:5001:127.0.0.1:4100')

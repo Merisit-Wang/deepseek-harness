@@ -4,6 +4,12 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { listSshTargets, parseSshConfig } from '../src/targets.ts'
 
+/** Narrow a possibly-undefined value under noUncheckedIndexedAccess. */
+function mustGet<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`expected ${what} to be defined`)
+  return value
+}
+
 describe('parseSshConfig', () => {
   it('parses concrete Host blocks with their fields', () => {
     const targets = parseSshConfig(`
@@ -16,11 +22,13 @@ Host bastion
   HostName bastion.example.com
 `)
     expect(targets).toHaveLength(2)
-    expect(targets[0]).toMatchObject({ alias: 'dev-box', hostName: '10.0.0.8', user: 'deploy', port: 2222 })
-    expect(targets[0].id).toContain('#dev-box')
-    expect(targets[1]).toMatchObject({ alias: 'bastion', hostName: 'bastion.example.com' })
-    expect(targets[1].user).toBeUndefined()
-    expect(targets[1].port).toBeUndefined()
+    const first = mustGet(targets[0], 'target')
+    const second = mustGet(targets[1], 'target')
+    expect(first).toMatchObject({ alias: 'dev-box', hostName: '10.0.0.8', user: 'deploy', port: 2222 })
+    expect(first.id).toContain('#dev-box')
+    expect(second).toMatchObject({ alias: 'bastion', hostName: 'bastion.example.com' })
+    expect(second.user).toBeUndefined()
+    expect(second.port).toBeUndefined()
   })
 
   it('skips wildcard and multi-pattern Host blocks', () => {
@@ -48,7 +56,7 @@ Host dup
   HostName a.example
   HostName b.example
 `)
-    expect(targets[0]).toMatchObject({ user: 'first', hostName: 'a.example' })
+    expect(mustGet(targets[0], 'target')).toMatchObject({ user: 'first', hostName: 'a.example' })
   })
 
   it('supports keyword=value syntax and strips comments', () => {
@@ -59,7 +67,7 @@ Host=equals-host   # trailing comment
   User=eq
 `)
     expect(targets).toHaveLength(1)
-    expect(targets[0]).toMatchObject({ alias: 'equals-host', hostName: 'eq.example', user: 'eq' })
+    expect(mustGet(targets[0], 'target')).toMatchObject({ alias: 'equals-host', hostName: 'eq.example', user: 'eq' })
   })
 
   it('drops invalid ports but keeps the target', () => {
@@ -70,8 +78,8 @@ Host high-port
   Port 99999
 `)
     expect(targets).toHaveLength(2)
-    expect(targets[0].port).toBeUndefined()
-    expect(targets[1].port).toBeUndefined()
+    expect(mustGet(targets[0], 'target').port).toBeUndefined()
+    expect(mustGet(targets[1], 'target').port).toBeUndefined()
   })
 })
 

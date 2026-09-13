@@ -11,24 +11,37 @@ English | [中文](README.zh.md)
 
 `dsh-experimental-client-ui-ssh-remote` contributes the SSH workspace panel to the web client: a sidebar panel that lists the operator's `~/.ssh/config` Host aliases with their backend lifecycle (checking, installing, starting, tunneling, ready, error), connects a target through the host controller's `ensure`, and navigates to the established tunnel URL. The panel renders only what the host reports — all provisioning authority stays in [`dsh-experimental-ssh-remote`](../ssh-remote/README.md).
 
+## Table of Contents
+
+- [Use this package](#use-this-package)
+- [Dev Note](#dev-note)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+
+-----
+
+<a id="use-this-package"></a>
 ## Use this package
 
 Compose through the [SSH remote Web profile layer](../ssh-remote-web-profile/README.md), which mounts this panel beside the host controller. The panel mounts the generated `sshRemote` Remote namespace itself (`ctx.remote.$mount`), so no release-package assembly changes are needed.
 
 ## Model Experience
 
-None: browser presentation and navigation only; nothing reaches a model request.
+None, as the panel renders host-reported backend state and registers nothing model-facing.
 
 #### KV Cache effect
 
-None.
+Nothing here enters a model request, so provider cache reuse is unaffected.
 
 ## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
 
 - Backend handoff reloads the page onto the tunnel URL; the zone-based simultaneous local/remote workspace area follows the [multi-backend Agent Note](../../../.agents/notes/proposed/architecture/2026-09-12-multi-backend-web-client.md).
 - Progress during `ensure` is point-in-time (refresh after settle), not streamed; forwarded host progress events are deferred.
 - No runtime invariant companion is published: the panel's observable mirrors the host status endpoint through one owner, so no independent observation can diverge.
 
-## Dev Note
+<a id="dev-note"></a>
+### Dev Note
 
 The panel registers a `sidebar.panellist` row and the matching `main` keyed seat under one id (`ssh-remote`). Panel state is a registrant-private observable in the inject `hooks` compartment; tests drive the store and callbacks directly per the client testing rules.

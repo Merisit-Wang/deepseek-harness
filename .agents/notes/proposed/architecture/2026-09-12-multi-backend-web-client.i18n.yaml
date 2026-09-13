@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-09-12-multi-backend-web-client.md
 2026-09-12-multi-backend-web-client.md: b20ac2967f09eee8ad956eeca57ab4ff966402e2
-2026-09-12-multi-backend-web-client.zh.md: 68b698b3045fef783b346aebf9d8f1302f977649
+2026-09-12-multi-backend-web-client.zh.md: 3058fd78c0978ed68ec60f6781a9445aff0eb72d

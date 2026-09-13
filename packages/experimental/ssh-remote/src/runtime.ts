@@ -141,12 +141,12 @@ async function ensureNode(
     runner,
     alias,
     [
-      `set -e`,
+      'set -e',
       `mkdir -p "${remoteRoot}/tmp"`,
       `cd "${remoteRoot}/tmp"`,
       `if command -v curl >/dev/null 2>&1; then curl -fsSLO "https://nodejs.org/dist/v${nodeInstallVersion}/${tarball}.tar.gz";`,
       `elif command -v wget >/dev/null 2>&1; then wget -q "https://nodejs.org/dist/v${nodeInstallVersion}/${tarball}.tar.gz";`,
-      `else echo 'neither curl nor wget is available on the remote' >&2; exit 1; fi`,
+      'else echo \'neither curl nor wget is available on the remote\' >&2; exit 1; fi',
       `rm -rf "${remoteRoot}/node" "${tarball}"`,
       `tar -xzf "${tarball}.tar.gz"`,
       `mv "${tarball}" "${remoteRoot}/node"`,
@@ -165,6 +165,12 @@ interface LocalInstall {
   readonly version: string
 }
 
+/** The package.json fields the install resolver reads. */
+interface LocalInstallManifest {
+  readonly version?: string
+  readonly bin?: Record<string, string>
+}
+
 /**
  * Resolve the local dsh CLI install as a self-contained payload. When the
  * CLI package lives inside a `node_modules` tree, that whole tree is the
@@ -174,9 +180,9 @@ interface LocalInstall {
 async function resolveLocalInstall(): Promise<LocalInstall> {
   let dir = dirname(fileURLToPath(import.meta.url))
   for (let depth = 0; depth < 12; depth += 1) {
-    let manifest: { version?: string; bin?: Record<string, string> } | undefined
+    let manifest: LocalInstallManifest | undefined
     try {
-      manifest = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      manifest = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')) as LocalInstallManifest
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
@@ -217,9 +223,12 @@ export function createTarRuntimePackager(): RuntimePackager {
       await new Promise<void>((resolve, reject) => {
         const child = spawn('tar', ['-chzf', tarballPath, '-C', install.payloadRoot, '.'], { stdio: ['ignore', 'ignore', 'pipe'] })
         let stderr = ''
-        child.stderr?.setEncoding('utf8').on('data', chunk => { stderr += chunk })
+        child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk })
         child.on('error', reject)
-        child.on('close', code => code === 0 ? resolve() : reject(new Error(`tar failed (${code}): ${stderr.trim()}`)))
+        child.on('close', (code) => {
+          if (code === 0) resolve()
+          else reject(new Error(`tar failed (${code}): ${stderr.trim()}`))
+        })
       })
       return tarballPath
     },
@@ -321,8 +330,9 @@ async function ensureRunning(
     }
   }
   const match = WEB_URL_LINE.exec(urlLine)
-  if (match === null) throw new Error(`unparsable remote startup line: ${urlLine}`)
-  const url = new URL(match[1])
+  const href = match?.[1]
+  if (href === undefined) throw new Error(`unparsable remote startup line: ${urlLine}`)
+  const url = new URL(href)
   const token = url.searchParams.get('token')
   if (token === null) throw new Error(`remote startup line carries no launch token: ${urlLine}`)
   return { remotePort: Number(url.port), token }
@@ -356,7 +366,12 @@ export async function ensureRemoteBackend(
   return { ...info, version }
 }
 
-/** Stable content hash of an alias, used for per-target work directories. */
+/**
+ * Stable content hash of an alias, used for per-target work directories.
+ * @param base - scratch root directory.
+ * @param alias - ssh `Host` alias to hash.
+ * @returns the per-target work directory path.
+ */
 export function targetWorkDir(base: string, alias: string): string {
   return join(base, createHash('sha256').update(alias).digest('hex').slice(0, 16))
 }

@@ -21,7 +21,7 @@ function subtitleOf(target: SshTarget): string | undefined {
 }
 
 /** Phase label key for one status, or undefined while idle. */
-function phaseKeyOf(status: SshBackendStatus | undefined): SshBackendPhase | undefined {
+function phaseKeyOf(status: SshBackendStatus | undefined): Exclude<SshBackendPhase, 'idle'> | undefined {
   return status?.phase === 'idle' ? undefined : status?.phase
 }
 

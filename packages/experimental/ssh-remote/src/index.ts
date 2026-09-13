@@ -22,6 +22,7 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { listSshTargets } from './targets.ts'
 import { createSystemSshRunner, type SshRunner, type SshSpawnedProcess } from './ssh.ts'
 import { DEFAULT_RUNTIME_OPTIONS, createTarRuntimePackager, ensureRemoteBackend, targetWorkDir } from './runtime.ts'
+import type { RuntimePackager } from './runtime.ts'
 import type {
   SshBackendPhase, SshBackendStatus, SshDisconnectRequest, SshEnsureRequest, SshEnsureResult, SshTarget, SshTargetId,
 } from './types.ts'
@@ -97,12 +98,17 @@ function freePort(): Promise<number> {
         return
       }
       const port = address.port
-      server.close(() => resolve(port))
+      server.close(() => { resolve(port) })
     })
   })
 }
 
-/** Probe the tunnel until the remote backend answers HTTP, or the deadline passes. */
+/**
+ * Probe the tunnel until the remote backend answers HTTP, or the deadline passes.
+ * @param url - tunnel-local URL to probe.
+ * @param deadlineMs - total probe budget in milliseconds.
+ * @param signal - caller cancellation.
+ */
 export async function waitForTunnel(url: string, deadlineMs: number, signal: AbortSignal): Promise<void> {
   const deadline = Date.now() + deadlineMs
   for (;;) {
@@ -135,10 +141,17 @@ export class SshRemoteController extends TypertRemoteService {
   private readonly config: Required<SshRemoteConfig>
   private readonly runner: SshRunner
   private readonly probe: TunnelProbe
+  private readonly packager: RuntimePackager
   private readonly backends = new Map<SshTargetId, BackendEntry>()
   private targets: SshTarget[] = []
 
-  constructor(ctx: Context, config: SshRemoteConfig = {}, runner?: SshRunner, probe: TunnelProbe = waitForTunnel) {
+  constructor(
+    ctx: Context,
+    config: SshRemoteConfig = {},
+    runner?: SshRunner,
+    probe: TunnelProbe = waitForTunnel,
+    packager?: RuntimePackager,
+  ) {
     super(ctx, 'sshRemote')
     const resolved = resolveConfig(config)
     this.config = {
@@ -148,10 +161,11 @@ export class SshRemoteController extends TypertRemoteService {
       nodeInstallVersion: resolved.nodeInstallVersion ?? DEFAULT_RUNTIME_OPTIONS.nodeInstallVersion,
       commandTimeoutMs: resolved.commandTimeoutMs ?? DEFAULT_RUNTIME_OPTIONS.commandTimeoutMs,
       launchTimeoutMs: resolved.launchTimeoutMs ?? DEFAULT_RUNTIME_OPTIONS.launchTimeoutMs,
-      stateDir: resolved.stateDir ?? join(tmpdir(), `dsh-ssh-${process.uid ?? 0}`),
+      stateDir: resolved.stateDir ?? join(tmpdir(), `dsh-ssh-${process.getuid?.() ?? 0}`),
     }
     this.runner = runner ?? createSystemSshRunner(join(this.config.stateDir, 'control'))
     this.probe = probe
+    this.packager = packager ?? createTarRuntimePackager()
     ctx.effect(() => () => {
       for (const entry of this.backends.values()) entry.tunnel?.kill()
     }, 'dsh-ssh-remote: close tunnels')
@@ -210,11 +224,11 @@ export class SshRemoteController extends TypertRemoteService {
    * @returns the local tunnel URL carrying the remote launch token.
    */
   @Remote('ensure')
-  remoteEnsure(request: SshEnsureRequest, signal: AbortSignal): Promise<SshEnsureResult> {
+  async remoteEnsure(request: SshEnsureRequest, signal: AbortSignal): Promise<SshEnsureResult> {
     const target = this.requireTarget(request.targetId)
     const existing = this.backends.get(target.id)
     if (existing?.phase === 'ready' && existing.backendUrl !== undefined) {
-      return Promise.resolve({ targetId: target.id, backendUrl: existing.backendUrl })
+      return { targetId: target.id, backendUrl: existing.backendUrl }
     }
     if (existing?.inflight !== undefined) return existing.inflight
     const inflight = this.ensure(target, signal)
@@ -257,8 +271,8 @@ export class SshRemoteController extends TypertRemoteService {
           commandTimeoutMs: this.config.commandTimeoutMs,
           launchTimeoutMs: this.config.launchTimeoutMs,
         },
-        createTarRuntimePackager(),
-        phase => this.setPhase(id, phase),
+        this.packager,
+        (phase) => { this.setPhase(id, phase) },
       )
       this.setPhase(id, 'tunneling')
       const localPort = await freePort()

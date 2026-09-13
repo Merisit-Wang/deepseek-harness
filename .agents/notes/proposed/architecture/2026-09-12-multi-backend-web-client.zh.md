@@ -6,19 +6,19 @@ Status: proposed
 
 ## Problem
 
-Web Client 目前只绑定一个 dsh Host：页面由该 Host 提供，所有 Remote 调用和流都走同源 `/api` 载体，一个 Connection 代只监视一条 `$events` 流，`ctx.remote.<namespace>` 只挂载一个 Host 生成的描述符，`ClientSessions` 和 Workspace 模型各自只镜像一个 Host 的状态。浏览器认证边界进一步固化了这一点：签名 cookie 绑定在提供页面的 authority 上，请求信任栅栏假设页面与 API 同源（[browser request trust](../../implemented/architecture/2026-07-28-api-browser-trust-boundary.md)、[browser token authentication](../../implemented/architecture/2026-08-24-browser-token-authentication.md)）。
+Web Client 目前只绑定一个 dsh Host：页面由该 Host 提供，所有 Remote 调用和流都走同源 `/api` 载体，一个 Connection 代只监视一条 `$events` 流，`ctx.remote.<namespace>` 只挂载一个 Host 生成的描述符，`ClientSessions` 和 Workspace 模型各自只镜像一个 Host 的状态。浏览器认证边界进一步固化了这一点：签名 cookie 绑定在提供页面的 authority 上，请求信任栅栏假设页面与 API 同源（[browser request trust](../../implemented/architecture/2026-07-28-api-browser-trust-boundary.zh.md)、[browser token authentication](../../implemented/architecture/2026-08-24-browser-token-authentication.zh.md)）。
 
 因此，远程工作区部署——最典型的场景是一台 SSH 目标机运行自己的 dsh Host——无法加入一个已经打开的页面。操作者必须打开第二个 URL（远程自己的服务器，可能经转发端口到达），这会割裂导航状态、每次切换丢失进行中的 UI 状态，并且永远无法同时看到两个 Host。SSH 生命周期本身（目标发现、远程安装、隧道、本地代理）属于外部插件，不是本笔记的主题；本笔记拥有的是这类插件所需要的 Client 侧能力：**一个页面驱动多个 dsh Host，且不刷新**。
 
 ## Proposal
 
-引入 **Backend** 作为 Client 侧概念：页面可驱动的一个可达 dsh Host。提供页面的 Host 是内置的 `local` Backend；插件在运行时注册更多 Backend。Backend 描述符携带一个稳定的品牌化 `BackendId`、一个同源 `apiBase` 路径、一个显示名和一个用于 UI 分组的 kind 标签。同源是硬规则：远程 Host 必须通过本地 webserver 委托给注册插件的代理路由到达（对 SSH 而言是 `ssh -L` 隧道端点），绝不通过第二个浏览器源，这样[请求信任栅栏](../../implemented/architecture/2026-07-28-api-browser-trust-boundary.md)和面向操作者的 cookie 模型保持原设计不变。
+引入 **Backend** 作为 Client 侧概念：页面可驱动的一个可达 dsh Host。提供页面的 Host 是内置的 `local` Backend；插件在运行时注册更多 Backend。Backend 描述符携带一个稳定的品牌化 `BackendId`、一个同源 `apiBase` 路径、一个显示名和一个用于 UI 分组的 kind 标签。同源是硬规则：远程 Host 必须通过本地 webserver 委托给注册插件的代理路由到达（对 SSH 而言是 `ssh -L` 隧道端点），绝不通过第二个浏览器源，这样[请求信任栅栏](../../implemented/architecture/2026-07-28-api-browser-trust-boundary.zh.md)和面向操作者的 cookie 模型保持原设计不变。
 
 本提案由四部分组成，每一部分都能在保持现有单后端行为的前提下交付：
 
-1. **按 Backend 的 Connection。** `ConnectionController` 的代机制（[continuous recovery](../../implemented/bug-fix/2026-09-05-continuous-client-recovery.md)）改为按 `apiBase` 参数化，不再使用写死的 `API_PATH` 常量。每个已注册 Backend 针对自己的基路径运行自己的 `$events` 流、就绪握手和重试计划；本地 Backend 逐位保持今日行为。
+1. **按 Backend 的 Connection。** `ConnectionController` 的代机制（[continuous recovery](../../implemented/bug-fix/2026-09-05-continuous-client-recovery.zh.md)）改为按 `apiBase` 参数化，不再使用写死的 `API_PATH` 常量。每个已注册 Backend 针对自己的基路径运行自己的 `$events` 流、就绪握手和重试计划；本地 Backend 逐位保持今日行为。
 2. **Backend 作用域上下文树。** 每个已连接 Backend 在客户端挂载一个 Cordis 子上下文，其中挂载该 Backend 生成的 `remote` 命名空间、`ClientSessions` 和 Workspace 模型实例。Session 作用域变为两级——先 Backend 后 Session——因此 `agentCtx.remote.<namespace>` 和作用域 waterfall 都按 Session 所属的 Backend 解析。注入根 `remote` 面的功能插件继续寻址本地 Backend，行为不变；一个功能要感知 Backend，就改为注入 Backend 作用域的面，这是一次逐插件的显式迁移。
-3. **Backend 注册表与 UI 聚合。** 一个新的轻量 client 包拥有注册表：注册、销毁、按 Backend 的恢复状态可观察量，以及版本握手。UI 适配器在标准源层聚合各 Backend 的源，使工作区区域**同时**展示每一个已连接 Backend，并按区域分组：`local` 区域在前，之后每个远程 Backend 一个区域。区域标题渲染 Backend 的显示名——对 SSH Backend 而言是 `~/.ssh/config` 里的 `Host` 别名，没有别名时回退为 `user@host`；凭据永远不渲染到 UI 的任何位置，而且 agent/密钥认证意味着大多数 SSH Backend 本来就没有密码可显示。会话外壳绑定一个 `(Backend, SessionBinding)` 对，方式与今天绑定一个 Session 完全相同（[Conversation assembly](../../implemented/architecture/2026-08-09-client-conversation-node-assembly.md) 不变，只是绑定的来源变宽）。
+3. **Backend 注册表与 UI 聚合。** 一个新的轻量 client 包拥有注册表：注册、销毁、按 Backend 的恢复状态可观察量，以及版本握手。UI 适配器在标准源层聚合各 Backend 的源，使工作区区域**同时**展示每一个已连接 Backend，并按区域分组：`local` 区域在前，之后每个远程 Backend 一个区域。区域标题渲染 Backend 的显示名——对 SSH Backend 而言是 `~/.ssh/config` 里的 `Host` 别名，没有别名时回退为 `user@host`；凭据永远不渲染到 UI 的任何位置，而且 agent/密钥认证意味着大多数 SSH Backend 本来就没有密码可显示。会话外壳绑定一个 `(Backend, SessionBinding)` 对，方式与今天绑定一个 Session 完全相同（[Conversation assembly](../../implemented/architecture/2026-08-09-client-conversation-node-assembly.zh.md) 不变，只是绑定的来源变宽）。
 4. **版本握手。** `$events` 就绪帧的 host 事实增加 Host 的客户端构建版本。构建版本先于或后于页面构建的 Backend 注册失败并给出可操作的错误，因为生成的 Typert 描述符只在同一构建内兼容。SSH 的分发模型（把本地运行时 tarball 下发到远程）使这项检查成为兜底，而不是常规失败。
 
 让远程 Host 同源的代理由注册插件自己完成对该 Host 的认证：插件带外执行启动令牌交换（对 SSH 而言，令牌从它自己拥有的远程启动输出中读取），缓存远程签发的 cookie，并在每个转发请求上附带它，同时把 `Host` 头改写为隧道 authority。远程 Host 的令牌和 cookie 永远不进入浏览器。
@@ -57,4 +57,4 @@ Web Client 目前只绑定一个 dsh Host：页面由该 Host 提供，所有 Re
 
 ## Related
 
-- [Domain KV storage and workspace](../architecture/2026-07-24-domain-kv-storage-and-workspace.md) 提议的是同时挂载多个 **Host 侧**存储后端；那条轴与本提案正交——这里的 Backend 是一个完整的远程 dsh Host，两个设计可以独立交付。没有任何活跃笔记被取代。
+- [Domain KV storage and workspace](../architecture/2026-07-24-domain-kv-storage-and-workspace.zh.md) 提议的是同时挂载多个 **Host 侧**存储后端；那条轴与本提案正交——这里的 Backend 是一个完整的远程 dsh Host，两个设计可以独立交付。没有任何活跃笔记被取代。

@@ -76,16 +76,22 @@ function baseSshArgs(controlDir: string): string[] {
   ]
 }
 
-function spawnCollect(spawnImpl: SshSpawn, argv: string[], input: string | undefined, timeoutMs: number): Promise<SshRunResult> {
+function spawnCollect(
+  spawnImpl: SshSpawn,
+  command: string,
+  args: string[],
+  input: string | undefined,
+  timeoutMs: number,
+): Promise<SshRunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawnImpl(argv[0], argv.slice(1), { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawnImpl(command, args, { stdio: ['pipe', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
-    child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk })
-    child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk })
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk })
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk })
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
-      reject(new Error(`ssh command timed out after ${timeoutMs}ms: ${argv.join(' ')}`))
+      reject(new Error(`ssh command timed out after ${timeoutMs}ms: ${command} ${args.join(' ')}`))
     }, timeoutMs)
     child.on('error', (error) => {
       clearTimeout(timer)
@@ -109,7 +115,7 @@ function spawnCollect(spawnImpl: SshSpawn, argv: string[], input: string | undef
  * @returns the runner.
  */
 export function createSystemSshRunner(
-  controlDir: string = join(tmpdir(), `dsh-ssh-${process.uid ?? 0}`),
+  controlDir: string = join(tmpdir(), `dsh-ssh-${process.getuid?.() ?? 0}`),
   spawnImpl: SshSpawn = spawn,
 ): SshRunner {
   const ready = mkdir(controlDir, { recursive: true, mode: 0o700 })
@@ -118,7 +124,8 @@ export function createSystemSshRunner(
       await ready
       const result = await spawnCollect(
         spawnImpl,
-        ['ssh', ...baseSshArgs(controlDir), alias, 'bash', '-s'],
+        'ssh',
+        [...baseSshArgs(controlDir), alias, 'bash', '-s'],
         script,
         timeoutMs,
       )
@@ -128,7 +135,8 @@ export function createSystemSshRunner(
       await ready
       const result = await spawnCollect(
         spawnImpl,
-        ['scp', ...baseSshArgs(controlDir), localPath, `${alias}:${remotePath}`],
+        'scp',
+        [...baseSshArgs(controlDir), localPath, `${alias}:${remotePath}`],
         undefined,
         timeoutMs,
       )
@@ -147,7 +155,7 @@ export function createSystemSshRunner(
         alias,
       ], { stdio: ['ignore', 'ignore', 'pipe'] })
       let stderr = ''
-      child.stderr?.setEncoding('utf8').on('data', chunk => { stderr += chunk })
+      child.stderr?.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk })
       let intentional = false
       const exited = new Promise<number | null>((resolve, reject) => {
         child.on('error', reject)

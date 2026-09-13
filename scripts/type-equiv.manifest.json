@@ -2105,6 +2105,41 @@
       "doc": "packages/client/ui-conversation/README.md",
       "symbol": "ComposerChainProps",
       "source": "packages/client/ui-conversation/src/client/contract/slots.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshTargetId",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshTarget",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshBackendPhase",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshBackendStatus",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshEnsureResult",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshEnsureRequest",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/ssh-remote.md",
+      "symbol": "SshDisconnectRequest",
+      "source": "packages/experimental/ssh-remote/src/types.ts"
     }
   ]
 }

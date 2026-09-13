@@ -4,7 +4,13 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SshRemoteController } from '../src/index.ts'
+import type { RuntimePackager } from '../src/runtime.ts'
 import type { SshRunner, SshRunResult, SshSpawnedProcess } from '../src/ssh.ts'
+
+const PACKAGER: RuntimePackager = {
+  version: () => Promise.resolve('1.2.3'),
+  pack: workDir => Promise.resolve(`${workDir}/dsh-runtime-1.2.3.tar.gz`),
+}
 
 function ok(stdout: string): SshRunResult {
   return { code: 0, stdout, stderr: '' }
@@ -13,8 +19,14 @@ function ok(stdout: string): SshRunResult {
 function fakeTunnel(): SshSpawnedProcess & { kill: ReturnType<typeof vi.fn> } {
   return {
     exited: new Promise<number | null>(() => {}),
-    kill: vi.fn(),
+    kill: vi.fn((): void => {}),
   }
+}
+
+/** Narrow a possibly-undefined value under noUncheckedIndexedAccess. */
+function mustGet<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`expected ${what} to be defined`)
+  return value
 }
 
 /** Runner whose scripts all succeed with canned answers for the healthy path. */
@@ -43,7 +55,6 @@ describe('SshRemoteController', () => {
     ctx = new Context()
   })
   afterEach(async () => {
-    await ctx.scope?.dispose?.().catch(() => {})
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -69,9 +80,10 @@ describe('SshRemoteController', () => {
       { sshConfigPath: configPath, stateDir: dir },
       runner,
       () => Promise.resolve(),
+      PACKAGER,
     )
     await controller.remoteTargets()
-    const target = (await controller.remoteTargets())[0]
+    const target = mustGet((await controller.remoteTargets())[0], 'target')
     const result = await controller.remoteEnsure({ targetId: target.id }, new AbortController().signal)
     expect(result.backendUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/\?token=tok123$/)
     const status = await controller.remoteStatus()
@@ -90,10 +102,10 @@ describe('SshRemoteController', () => {
       startTunnel: () => fakeTunnel(),
     }
     const controller = new SshRemoteController(ctx, { sshConfigPath: configPath, stateDir: dir }, runner)
-    const [target] = await controller.remoteTargets()
+    const target = mustGet((await controller.remoteTargets())[0], 'target')
     await expect(controller.remoteEnsure({ targetId: target.id }, new AbortController().signal))
       .rejects.toThrow()
-    const [status] = await controller.remoteStatus()
+    const status = mustGet((await controller.remoteStatus())[0], 'status')
     expect(status.phase).toBe('error')
     expect(status.error).toContain('Connection refused')
   })
@@ -114,12 +126,14 @@ describe('SshRemoteController', () => {
       { sshConfigPath: configPath, stateDir: dir },
       healthyRunner(tunnel),
       () => Promise.resolve(),
+      PACKAGER,
     )
     const [target] = await controller.remoteTargets()
-    await controller.remoteEnsure({ targetId: target.id }, new AbortController().signal)
-    await controller.remoteDisconnect({ targetId: target.id })
+    const ensured = mustGet(target, 'target')
+    await controller.remoteEnsure({ targetId: ensured.id }, new AbortController().signal)
+    await controller.remoteDisconnect({ targetId: ensured.id })
     expect(tunnel.kill).toHaveBeenCalledOnce()
-    const [status] = await controller.remoteStatus()
+    const status = mustGet((await controller.remoteStatus())[0], 'status')
     expect(status.phase).toBe('idle')
   })
 })

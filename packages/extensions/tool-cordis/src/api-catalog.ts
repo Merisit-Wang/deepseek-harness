@@ -2215,6 +2215,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'sshRemote',
+    summary: '`ctx.sshRemote`: target discovery, remote provisioning, and tunnel lifecycle for SSH remote workspaces.',
+    description: '`ctx.sshRemote`: target discovery, remote provisioning, and tunnel lifecycle for SSH remote workspaces. The browser opens the `backendUrl` an `ensure` call returns; the URL already carries the remote backend\'s launch token, so the remote\'s own browser-auth exchange issues its cookie against the tunnel authority with no proxy involvement.',
+    methods: [
+      {
+        signature: '@Remote(\'targets\') async remoteTargets(): Promise<SshTarget[]>',
+        description: 'List the SSH targets discovered from the operator\'s ssh config.',
+        parameters: [],
+        returns: 'targets in config-file order.',
+      },
+      {
+        signature: '@Remote(\'status\') remoteStatus(): Promise<SshBackendStatus[]>',
+        description: 'Read the current lifecycle of every backend this controller manages.',
+        parameters: [],
+        returns: 'one status row per target with non-idle state.',
+      },
+      {
+        signature: '@Remote(\'ensure\') async remoteEnsure(request: SshEnsureRequest, signal: AbortSignal): Promise<SshEnsureResult>',
+        description: 'Provision and connect one target\'s remote backend: detect or install Node.js, ship the matching dsh runtime when absent or stale, launch the remote `dsh web`, and open an `ssh -L` tunnel to its port. Concurrent calls for one target join the same in-flight provisioning.',
+        parameters: [{ name: 'request', description: 'target to ensure.' }, { name: 'signal', description: 'caller cancellation; aborts waiting and provisioning.' }],
+        returns: 'the local tunnel URL carrying the remote launch token.',
+      },
+      {
+        signature: '@Remote(\'disconnect\') remoteDisconnect(request: SshDisconnectRequest): Promise<void>',
+        description: 'Tear down one target\'s tunnel, leaving the remote backend process running for a later reconnect.',
+        parameters: [{ name: 'request', description: 'target to disconnect.' }],
+      },
+    ],
+  },
+  {
     key: 'storage',
     summary: 'The storage hub service.',
     description: 'The storage hub service. Backends register under `backend`; data forms mount under their `StorageForms` key and are reached as `ctx.storage.<form>`.',
@@ -5693,6 +5723,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SpillSource',
     declaration: 'export type SpillSource = {\n    kind: \'tool\';\n    toolName: string;\n    callId: ToolCallId;\n    label: string;\n} | {\n    kind: \'session-reference\';\n    sessionId: SessionId;\n    label: string;\n};',
+  },
+  {
+    name: 'SshBackendPhase',
+    declaration: 'export type SshBackendPhase = \'idle\' | \'checking\' | \'installing-node\' | \'installing-dsh\' | \'starting\' | \'tunneling\' | \'ready\' | \'error\';',
+  },
+  {
+    name: 'SshBackendStatus',
+    declaration: 'export interface SshBackendStatus {\n    readonly targetId: SshTargetId;\n    readonly phase: SshBackendPhase;\n    readonly error?: string;\n    readonly backendUrl?: string;\n}',
+  },
+  {
+    name: 'SshDisconnectRequest',
+    declaration: 'export interface SshDisconnectRequest {\n    readonly targetId: SshTargetId;\n}',
+  },
+  {
+    name: 'SshEnsureRequest',
+    declaration: 'export interface SshEnsureRequest {\n    readonly targetId: SshTargetId;\n}',
+  },
+  {
+    name: 'SshEnsureResult',
+    declaration: 'export interface SshEnsureResult {\n    readonly targetId: SshTargetId;\n    readonly backendUrl: string;\n}',
+  },
+  {
+    name: 'SshTarget',
+    declaration: 'export interface SshTarget {\n    readonly id: SshTargetId;\n    readonly alias: string;\n    readonly hostName?: string;\n    readonly user?: string;\n    readonly port?: number;\n}',
+  },
+  {
+    name: 'SshTargetId',
+    declaration: 'export type SshTargetId = Branded<\'SshTargetId\'>;',
   },
   {
     name: 'StorageBackend',

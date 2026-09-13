@@ -30,11 +30,13 @@ export function parseSshConfig(text: string, configPath: string = DEFAULT_SSH_CO
     const id = brandString<SshTargetId>(`${configPath}#${current.alias}`)
     const portText = current.values.get('port')
     const port = portText === undefined ? undefined : Number(portText)
+    const hostName = current.values.get('hostname')
+    const user = current.values.get('user')
     targets.push({
       id,
       alias: current.alias,
-      ...current.values.has('hostname') ? { hostName: current.values.get('hostname') } : {},
-      ...current.values.has('user') ? { user: current.values.get('user') } : {},
+      ...hostName !== undefined ? { hostName } : {},
+      ...user !== undefined ? { user } : {},
       ...port !== undefined && Number.isInteger(port) && port > 0 && port <= 65535 ? { port } : {},
     })
     current = undefined
@@ -45,14 +47,16 @@ export function parseSshConfig(text: string, configPath: string = DEFAULT_SSH_CO
     if (line === '') continue
     const match = /^(\S+)\s+(.*)$/.exec(line) ?? /^(\S+)=(.*)$/.exec(line)
     if (match === null) continue
-    const keyword = match[1].toLowerCase()
+    const keyword = match[1]?.toLowerCase()
     const value = (match[2] ?? '').trim()
+    if (keyword === undefined) continue
     if (keyword === 'host') {
       flush()
       // A `Host` line may name several patterns; only a single concrete alias
       // becomes a target. Wildcard blocks restart accumulation with no target.
       const patterns = value.split(/\s+/).filter(pattern => pattern !== '')
-      const concrete = patterns.length === 1 && !/[*?!]/.test(patterns[0]) ? patterns[0] : undefined
+      const first = patterns[0]
+      const concrete = patterns.length === 1 && first !== undefined && !/[*?!]/.test(first) ? first : undefined
       current = concrete === undefined ? undefined : { alias: concrete, values: new Map() }
       continue
     }

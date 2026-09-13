@@ -586,6 +586,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns the implicit-root roster, durable peer mailbox, shared task DAG, continuable-child lifecycle, and generated Team Remote methods; tool-agent-team contributes model controls and client-ui-agent-team mounts the browser contribution.',
   },
   {
+    key: 'sshRemote',
+    pkg: 'experimental-ssh-remote',
+    title: 'SSH remote workspace provisioning',
+    mode: 'core',
+    consumers: ['experimental-client-ui-ssh-remote'],
+    note: 'Discovers targets from ~/.ssh/config, provisions Node.js and a matching dsh runtime over the system ssh binary, launches the remote backend, and owns tunnel lifecycle; the browser panel consumes the generated Remote namespace.',
+  },
+  {
     key: 'inspector',
     pkg: 'inspector',
     title: 'Cross-realm runtime inspection',
